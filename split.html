@@ -8,7 +8,6 @@
         :root { --primary: #2563eb; --bg: #f8fafc; }
         body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg); display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; }
         
-        /* تنسيق زر الرجوع */
         .back-home {
             position: fixed;
             top: 20px;
@@ -31,7 +30,7 @@
         .group { margin-bottom: 15px; text-align: right; }
         label { display: block; margin-bottom: 8px; font-weight: 600; font-size: 0.9rem; color: #475569; }
         .time-inputs { display: flex; gap: 10px; }
-        input { width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 10px; outline: none; transition: 0.3s; }
+        input { width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 10px; outline: none; transition: 0.3s; box-sizing: border-box; }
         input:focus { border-color: var(--primary); }
         .mode-selector { display: flex; gap: 10px; margin-bottom: 20px; }
         .mode-btn { flex: 1; padding: 12px; border: 2px solid #e2e8f0; border-radius: 10px; background: #fff; cursor: pointer; font-weight: bold; }
@@ -75,7 +74,7 @@
 
     <div class="group">
         <label>3. اسم الملفات الأساسي:</label>
-        <input type="text" id="baseName" placeholder="مثلاً: عبدالرحمن">
+        <input type="text" id="baseName" placeholder="مثلاً: صوتي">
     </div>
 
     <button id="mainBtn" onclick="process()">ابدأ التقسيم والتحميل</button>
@@ -103,78 +102,28 @@
         if (!file) return alert("الرجاء اختيار ملف أولاً");
 
         btn.disabled = true;
-        status.innerHTML = "⏳ جاري فحص الملف...<br><small>للملفات الكبيرة، قد يستغرق الأمر ثوانٍ.</small>";
+        status.innerHTML = "⏳ جاري المعالجة...";
 
         try {
-            let dirHandle = null;
-            if (window.showDirectoryPicker && !/Android|iPhone|iPad/i.test(navigator.userAgent)) {
-                try {
-                    dirHandle = await window.showDirectoryPicker();
-                } catch (e) {
-                    console.log("تم إلغاء اختيار المجلد، سيتم استخدام التحميل العادي.");
-                }
-            }
-
-            const audio = document.createElement('audio');
-            const fileUrl = URL.createObjectURL(file);
-            audio.src = fileUrl;
-
-            await new Promise((resolve, reject) => {
-                audio.onloadedmetadata = () => resolve();
-                audio.onerror = () => reject("خطأ في قراءة ملف الصوت");
-                setTimeout(() => reject("استغرق الفحص وقتاً طويلاً"), 10000);
-            });
-
-            const totalDuration = audio.duration;
-            let totalParts, partSize;
-
-            if (currentMode === 'time') {
-                const totalSec = (parseInt(document.getElementById('inputMin').value) || 0) * 60 + (parseInt(document.getElementById('inputSec').value) || 0);
-                if (totalSec <= 0) throw new Error("يرجى تحديد وقت صحيح");
-                totalParts = Math.ceil(totalDuration / totalSec);
-                partSize = Math.floor(file.size / (totalDuration / totalSec));
-            } else {
-                totalParts = parseInt(document.getElementById('inputCount').value);
-                if (isNaN(totalParts) || totalParts <= 0) throw new Error("يرجى تحديد عدد صحيح");
-                partSize = Math.floor(file.size / totalParts);
-            }
-
-            status.innerHTML = `✂️ جاري تقسيم وحفظ ${totalParts} ملف...`;
+            const totalSize = file.size;
+            let totalParts = (currentMode === 'time') ? 5 : parseInt(document.getElementById('inputCount').value);
+            const partSize = Math.floor(totalSize / totalParts);
 
             for (let i = 0; i < totalParts; i++) {
                 const start = i * partSize;
-                const end = (i === totalParts - 1) ? file.size : start + partSize;
-                
-                if (start >= file.size) break;
-
+                const end = (i === totalParts - 1) ? totalSize : start + partSize;
                 const chunk = file.slice(start, end);
-                const ext = file.name.split('.').pop();
-                const fileName = `${baseName} ${i + 1}.${ext}`;
-
-                if (dirHandle) {
-                    const fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
-                    const writable = await fileHandle.createWritable();
-                    await writable.write(chunk);
-                    await writable.close();
-                } else {
-                    const url = URL.createObjectURL(chunk);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = fileName;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    await new Promise(r => setTimeout(r, 1000));
-                    URL.revokeObjectURL(url);
-                }
-                status.innerText = `تمت معالجة ${i + 1} من ${totalParts}`;
+                const url = URL.createObjectURL(chunk);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${baseName}_${i + 1}.${file.name.split('.').pop()}`;
+                a.click();
+                await new Promise(r => setTimeout(r, 500));
+                URL.revokeObjectURL(url);
             }
-
             status.innerHTML = "<b style='color:#059669'>✅ اكتملت العملية بنجاح!</b>";
-            URL.revokeObjectURL(fileUrl);
         } catch (e) {
-            console.error(e);
-            status.innerHTML = `<span style="color:red">❌ خطأ: ${e.message || "الملف غير مدعوم"}</span>`;
+            status.innerHTML = `<span style="color:red">❌ خطأ في المعالجة</span>`;
         } finally {
             btn.disabled = false;
         }
@@ -182,4 +131,3 @@
 </script>
 </body>
 </html>
-
