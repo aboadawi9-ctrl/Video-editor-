@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مقسم الصوت الاحترافي</title>
+    <style>
+        :root { --primary: #2563eb; --bg: #f8fafc; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg); display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; }
+        
+        /* تنسيق زر الرجوع */
+        .back-home {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            text-decoration: none;
+            background: #334155;
+            color: white;
+            padding: 10px 18px;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            font-weight: bold;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            transition: 0.3s;
+            z-index: 1000;
+        }
+        .back-home:hover { background: #1e293b; transform: translateY(-2px); }
+
+        .card { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); width: 100%; max-width: 450px; }
+        h2 { text-align: center; color: var(--primary); margin: 0 0 20px 0; }
+        .group { margin-bottom: 15px; text-align: right; }
+        label { display: block; margin-bottom: 8px; font-weight: 600; font-size: 0.9rem; color: #475569; }
+        .time-inputs { display: flex; gap: 10px; }
+        input { width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 10px; outline: none; transition: 0.3s; }
+        input:focus { border-color: var(--primary); }
+        .mode-selector { display: flex; gap: 10px; margin-bottom: 20px; }
+        .mode-btn { flex: 1; padding: 12px; border: 2px solid #e2e8f0; border-radius: 10px; background: #fff; cursor: pointer; font-weight: bold; }
+        .mode-btn.active { border-color: var(--primary); color: var(--primary); background: #eff6ff; }
+        button#mainBtn { width: 100%; padding: 15px; background: var(--primary); color: white; border: none; border-radius: 10px; font-size: 1.1rem; font-weight: bold; cursor: pointer; transition: 0.3s; }
+        button#mainBtn:hover { background: #1d4ed8; }
+        button#mainBtn:disabled { background: #cbd5e1; cursor: not-allowed; }
+        #status { margin-top: 15px; font-size: 0.85rem; text-align: center; color: #64748b; padding: 12px; background: #f1f5f9; border-radius: 8px; min-height: 40px; line-height: 1.5; }
+    </style>
+</head>
+<body>
+
+<a href="index.html" class="back-home">🏠 الرئيسية</a>
+
+<div class="card">
+    <h2>🚀 مقسم الصوت</h2>
+    
+    <div class="group">
+        <label>1. اختر الملف الصوتي:</label>
+        <input type="file" id="audioInput" accept="audio/*">
+    </div>
+
+    <label>2. طريقة التقسيم:</label>
+    <div class="mode-selector">
+        <button class="mode-btn active" id="modeTime" onclick="setMode('time')">بالوقت</button>
+        <button class="mode-btn" id="modeCount" onclick="setMode('count')">بالعدد</button>
+    </div>
+
+    <div id="timeInputGroup" class="group">
+        <label>حدد مدة المقطع:</label>
+        <div class="time-inputs">
+            <div style="flex:1"><input type="number" id="inputMin" value="5" min="0"> <small>دقيقة</small></div>
+            <div style="flex:1"><input type="number" id="inputSec" value="0" min="0" max="59"> <small>ثانية</small></div>
+        </div>
+    </div>
+
+    <div id="countInputGroup" class="group" style="display:none;">
+        <label>إجمالي عدد المقاطع:</label>
+        <input type="number" id="inputCount" value="10" min="1">
+    </div>
+
+    <div class="group">
+        <label>3. اسم الملفات الأساسي:</label>
+        <input type="text" id="baseName" placeholder="مثلاً: عبدالرحمن">
+    </div>
+
+    <button id="mainBtn" onclick="process()">ابدأ التقسيم والتحميل</button>
+    <div id="status">جاهز لمعالجة ملفك..</div>
+</div>
+
+<script>
+    let currentMode = 'time';
+
+    function setMode(mode) {
+        currentMode = mode;
+        document.getElementById('modeTime').classList.toggle('active', mode === 'time');
+        document.getElementById('modeCount').classList.toggle('active', mode === 'count');
+        document.getElementById('timeInputGroup').style.display = (mode === 'time') ? 'block' : 'none';
+        document.getElementById('countInputGroup').style.display = (mode === 'count') ? 'block' : 'none';
+    }
+
+    async function process() {
+        const fileInput = document.getElementById('audioInput');
+        const file = fileInput.files[0];
+        const btn = document.getElementById('mainBtn');
+        const status = document.getElementById('status');
+        const baseName = document.getElementById('baseName').value.trim() || "audio";
+
+        if (!file) return alert("الرجاء اختيار ملف أولاً");
+
+        btn.disabled = true;
+        status.innerHTML = "⏳ جاري فحص الملف...<br><small>للملفات الكبيرة، قد يستغرق الأمر ثوانٍ.</small>";
+
+        try {
+            let dirHandle = null;
+            if (window.showDirectoryPicker && !/Android|iPhone|iPad/i.test(navigator.userAgent)) {
+                try {
+                    dirHandle = await window.showDirectoryPicker();
+                } catch (e) {
+                    console.log("تم إلغاء اختيار المجلد، سيتم استخدام التحميل العادي.");
+                }
+            }
+
+            const audio = document.createElement('audio');
+            const fileUrl = URL.createObjectURL(file);
+            audio.src = fileUrl;
+
+            await new Promise((resolve, reject) => {
+                audio.onloadedmetadata = () => resolve();
+                audio.onerror = () => reject("خطأ في قراءة ملف الصوت");
+                setTimeout(() => reject("استغرق الفحص وقتاً طويلاً"), 10000);
+            });
+
+            const totalDuration = audio.duration;
+            let totalParts, partSize;
+
+            if (currentMode === 'time') {
+                const totalSec = (parseInt(document.getElementById('inputMin').value) || 0) * 60 + (parseInt(document.getElementById('inputSec').value) || 0);
+                if (totalSec <= 0) throw new Error("يرجى تحديد وقت صحيح");
+                totalParts = Math.ceil(totalDuration / totalSec);
+                partSize = Math.floor(file.size / (totalDuration / totalSec));
+            } else {
+                totalParts = parseInt(document.getElementById('inputCount').value);
+                if (isNaN(totalParts) || totalParts <= 0) throw new Error("يرجى تحديد عدد صحيح");
+                partSize = Math.floor(file.size / totalParts);
+            }
+
+            status.innerHTML = `✂️ جاري تقسيم وحفظ ${totalParts} ملف...`;
+
+            for (let i = 0; i < totalParts; i++) {
+                const start = i * partSize;
+                const end = (i === totalParts - 1) ? file.size : start + partSize;
+                
+                if (start >= file.size) break;
+
+                const chunk = file.slice(start, end);
+                const ext = file.name.split('.').pop();
+                const fileName = `${baseName} ${i + 1}.${ext}`;
+
+                if (dirHandle) {
+                    const fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
+                    const writable = await fileHandle.createWritable();
+                    await writable.write(chunk);
+                    await writable.close();
+                } else {
+                    const url = URL.createObjectURL(chunk);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = fileName;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    await new Promise(r => setTimeout(r, 1000));
+                    URL.revokeObjectURL(url);
+                }
+                status.innerText = `تمت معالجة ${i + 1} من ${totalParts}`;
+            }
+
+            status.innerHTML = "<b style='color:#059669'>✅ اكتملت العملية بنجاح!</b>";
+            URL.revokeObjectURL(fileUrl);
+        } catch (e) {
+            console.error(e);
+            status.innerHTML = `<span style="color:red">❌ خطأ: ${e.message || "الملف غير مدعوم"}</span>`;
+        } finally {
+            btn.disabled = false;
+        }
+    }
+</script>
+</body>
+</html>
+
